@@ -1,4 +1,4 @@
-package org.example.tnal_prochum.model.entities;
+package org.example.tnal_prochum.model;
 
 import jakarta.persistence.*;
 

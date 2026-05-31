@@ -1,4 +1,5 @@
-package org.example.tnal_prochum;
+package org.example.tnal_prochum.telegram;
+
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -18,6 +19,6 @@ public class BotInitializer {
     public void init() throws TelegramApiException {
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(meetingBot);
-        System.out.println(" Bot registered successfully!");
+        System.out.println("✅ Bot registered successfully!");
     }
 }
