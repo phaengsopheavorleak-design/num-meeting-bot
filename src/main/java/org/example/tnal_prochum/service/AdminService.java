@@ -1,4 +1,5 @@
 package org.example.tnal_prochum.service;
+import jakarta.annotation.PostConstruct;
 import org.example.tnal_prochum.model.AdminConfig;
 import org.example.tnal_prochum.repository.AdminConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,5 +31,15 @@ public class AdminService {
         config.setAdminChatId(newChatId);
         adminConfigRepository.save(config);
         System.out.println("✅ Admin changed to: " + newChatId);
+    }
+    @PostConstruct
+    public void init() {
+        // On startup, always sync Railway Variable to database
+        Optional<AdminConfig> config = adminConfigRepository.findById(1L);
+        if (config.isEmpty()) {
+            // First time — save the default admin from properties
+            adminConfigRepository.save(new AdminConfig(defaultAdminChatId));
+            System.out.println("✅ Admin initialized: " + defaultAdminChatId);
+        }
     }
 }

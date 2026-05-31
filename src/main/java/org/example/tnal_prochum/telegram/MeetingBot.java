@@ -56,7 +56,6 @@ public class MeetingBot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
 
-        // Handle button clicks
         if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
@@ -65,7 +64,6 @@ public class MeetingBot extends TelegramLongPollingBot {
             return;
         }
 
-        // Handle text messages
         if (update.hasMessage() && update.getMessage().hasText()) {
             Message msg = update.getMessage();
             String messageText = msg.getText();
@@ -76,19 +74,26 @@ public class MeetingBot extends TelegramLongPollingBot {
             System.out.println("📩 Message from " + firstName + " (" + chatId + "): " + messageText);
 
             if (messageText.equals("/start")) {
-                participantService.saveParticipant(chatId, firstName, username);
+                // Don't save admin as participant
+                if (!chatId.equals(adminService.getAdminChatId())) {
+                    participantService.saveParticipant(chatId, firstName, username);
+                }
+
                 sendMessage(chatId,
                         "👋 Welcome " + firstName + " to NUM Meeting System!\n\n" +
                                 "✅ You are now subscribed to announcements.\n" +
                                 "You will receive meeting updates automatically."
                 );
 
-                Optional<Meeting> meeting = rsvpService.getActiveMeeting();
-                meeting.ifPresent(m -> sendRsvpButtons(chatId,
-                        "📋 There is an upcoming meeting:\n\n" +
-                                m.getTitle() + "\n\n" +
-                                "Will you attend?"
-                ));
+                // Only show RSVP buttons to participants not admin
+                if (!chatId.equals(adminService.getAdminChatId())) {
+                    Optional<Meeting> meeting = rsvpService.getActiveMeeting();
+                    meeting.ifPresent(m -> sendRsvpButtons(chatId,
+                            "📋 There is an upcoming meeting:\n\n" +
+                                    m.getTitle() + "\n\n" +
+                                    "Will you attend?"
+                    ));
+                }
 
             } else if (chatId.equals(adminService.getAdminChatId())) {
                 handleAdminMessage(messageText, chatId);
@@ -124,17 +129,22 @@ public class MeetingBot extends TelegramLongPollingBot {
                     LocalDateTime meetingTime = LocalDateTime.parse(timeStr, formatter);
                     rsvpService.createMeeting(title, meetingTime);
 
+                    // Send RSVP buttons to participants ONLY — skip admin
                     List<Participant> all = participantService.getAllParticipants();
+                    int sentCount = 0;
                     for (Participant p : all) {
-                        sendRsvpButtons(p.getChatId(),
-                                "📢 New Meeting Announced!\n\n" +
-                                        "📋 " + title + "\n" +
-                                        "🕐 " + timeStr + "\n\n" +
-                                        "Will you attend?"
-                        );
+                        if (!p.getChatId().equals(adminService.getAdminChatId())) {
+                            sendRsvpButtons(p.getChatId(),
+                                    "📢 New Meeting Announced!\n\n" +
+                                            "📋 " + title + "\n" +
+                                            "🕐 " + timeStr + "\n\n" +
+                                            "Will you attend?"
+                            );
+                            sentCount++;
+                        }
                     }
                     sendMessage(adminService.getAdminChatId(),
-                            "✅ Meeting created and sent to " + all.size() + " participants!");
+                            "✅ Meeting created and sent to " + sentCount + " participants!");
 
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -209,16 +219,11 @@ public class MeetingBot extends TelegramLongPollingBot {
         } else if (cleanText.startsWith("/setadmin ")) {
             String newAdminId = cleanText.replace("/setadmin ", "").trim();
             String oldAdminId = adminService.getAdminChatId();
-
             adminService.setAdminChatId(newAdminId);
-
-            // Notify old admin
             sendMessage(oldAdminId,
                     "✅ Admin role has been transferred!\n\n" +
                             "New admin ID: " + newAdminId
             );
-
-            // Notify new admin
             sendMessage(newAdminId,
                     "🎉 You are now the admin of NUM Meeting System!\n\n" +
                             "Type /help to see all available commands."
@@ -236,6 +241,13 @@ public class MeetingBot extends TelegramLongPollingBot {
             );
 
         } else {
+            // Broadcast to participants only — skip admin
+            List<Participant> all = participantService.getAllParticipants();
+            for (Participant p : all) {
+                if (!p.getChatId().equals(adminService.getAdminChatId())) {
+                    sendMessage(p.getChatId(), messageText);
+                }
+            }
             announcementService.saveAndSendAnnouncement(messageText);
             sendMessage(adminService.getAdminChatId(),
                     "✅ Announcement sent to all participants!");
