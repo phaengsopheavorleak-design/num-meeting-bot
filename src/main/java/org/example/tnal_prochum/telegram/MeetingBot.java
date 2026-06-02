@@ -74,7 +74,6 @@ public class MeetingBot extends TelegramLongPollingBot {
             System.out.println("📩 Message from " + firstName + " (" + chatId + "): " + messageText);
 
             if (messageText.equals("/start")) {
-                // Don't save admin as participant
                 if (!chatId.equals(adminService.getAdminChatId())) {
                     participantService.saveParticipant(chatId, firstName, username);
                 }
@@ -85,7 +84,6 @@ public class MeetingBot extends TelegramLongPollingBot {
                                 "You will receive meeting updates automatically."
                 );
 
-                // Only show RSVP buttons to participants not admin
                 if (!chatId.equals(adminService.getAdminChatId())) {
                     Optional<Meeting> meeting = rsvpService.getActiveMeeting();
                     meeting.ifPresent(m -> sendRsvpButtons(chatId,
@@ -129,7 +127,6 @@ public class MeetingBot extends TelegramLongPollingBot {
                     LocalDateTime meetingTime = LocalDateTime.parse(timeStr, formatter);
                     rsvpService.createMeeting(title, meetingTime);
 
-                    // Send RSVP buttons to participants ONLY — skip admin
                     List<Participant> all = participantService.getAllParticipants();
                     int sentCount = 0;
                     for (Participant p : all) {
@@ -158,6 +155,67 @@ public class MeetingBot extends TelegramLongPollingBot {
                 sendMessage(adminService.getAdminChatId(),
                         "❌ Missing | symbol!\n\n" +
                                 "Use: /meeting Title | 2026-05-28 10:00"
+                );
+            }
+
+        } else if (cleanText.startsWith("/reschedule ")) {
+            String timeStr = cleanText.replace("/reschedule ", "").trim();
+            try {
+                Optional<Meeting> meetingOpt = rsvpService.getActiveMeeting();
+                if (meetingOpt.isEmpty()) {
+                    sendMessage(adminService.getAdminChatId(),
+                            "❌ No active meeting to reschedule.\n\n" +
+                                    "Create a meeting first using:\n" +
+                                    "/meeting Title | 2026-06-01 10:00"
+                    );
+                } else {
+                    Meeting meeting = meetingOpt.get();
+                    String oldTime = meeting.getMeetingTime().toString();
+
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+                    LocalDateTime newTime = LocalDateTime.parse(timeStr, formatter);
+
+                    // Update meeting time
+                    meeting.setMeetingTime(newTime);
+
+                    // Reset all reminder flags so everyone gets reminders again
+                    meeting.setOneDayReminderSent(false);
+                    meeting.setThreeHourReminderSent(false);
+                    meeting.setFiveMinuteReminderSent(false);
+                    meeting.setStartedNotificationSent(false);
+
+                    rsvpService.saveMeeting(meeting);
+
+                    // Notify all participants about the reschedule
+                    List<Participant> all = participantService.getAllParticipants();
+                    int notifiedCount = 0;
+                    for (Participant p : all) {
+                        if (!p.getChatId().equals(adminService.getAdminChatId())) {
+                            sendMessage(p.getChatId(),
+                                    "📢 Meeting Rescheduled!\n\n" +
+                                            "📋 " + meeting.getTitle() + "\n" +
+                                            "🕐 New time: " + timeStr + "\n\n" +
+                                            "⚠️ Please take note of the new meeting time!\n" +
+                                            "Your previous RSVP response is still saved."
+                            );
+                            notifiedCount++;
+                        }
+                    }
+
+                    sendMessage(adminService.getAdminChatId(),
+                            "✅ Meeting rescheduled!\n\n" +
+                                    "📋 " + meeting.getTitle() + "\n" +
+                                    "🕐 New time: " + timeStr + "\n\n" +
+                                    "📢 Notified " + notifiedCount + " participants.\n" +
+                                    "All reminders have been reset automatically."
+                    );
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                sendMessage(adminService.getAdminChatId(),
+                        "❌ Wrong format!\n\n" +
+                                "Use: /reschedule 2026-06-01 11:00\n" +
+                                "Example: /reschedule 2026-06-01 11:00"
                 );
             }
 
@@ -233,6 +291,7 @@ public class MeetingBot extends TelegramLongPollingBot {
             sendMessage(adminService.getAdminChatId(),
                     "📋 Admin Commands:\n\n" +
                             "/meeting Title | 2026-05-28 10:00 — Create meeting\n" +
+                            "/reschedule 2026-06-01 11:00 — Reschedule active meeting\n" +
                             "/reply @username message — Private message\n" +
                             "/list — Show all participants\n" +
                             "/rsvp — Show attendance status\n" +
@@ -241,7 +300,6 @@ public class MeetingBot extends TelegramLongPollingBot {
             );
 
         } else {
-            // Broadcast to participants only — skip admin
             List<Participant> all = participantService.getAllParticipants();
             for (Participant p : all) {
                 if (!p.getChatId().equals(adminService.getAdminChatId())) {
