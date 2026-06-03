@@ -1,5 +1,5 @@
 package org.example.tnal_prochum.telegram;
-
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.example.tnal_prochum.model.Meeting;
 import org.example.tnal_prochum.model.Participant;
 import org.example.tnal_prochum.model.Rsvp;
@@ -60,6 +60,15 @@ public class MeetingBot extends TelegramLongPollingBot {
             String callbackData = update.getCallbackQuery().getData();
             String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
             String firstName = update.getCallbackQuery().getFrom().getFirstName();
+            Integer messageId = update.getCallbackQuery().getMessage().getMessageId();
+            String callbackQueryId = update.getCallbackQuery().getId();
+
+            // Remove buttons after clicking
+            removeButtons(chatId, messageId);
+
+            // Answer the callback to stop loading spinner
+            answerCallback(callbackQueryId);
+
             handleCallback(callbackData, chatId, firstName);
             return;
         }
@@ -321,6 +330,8 @@ public class MeetingBot extends TelegramLongPollingBot {
 
         Meeting meeting = meetingOpt.get();
 
+        // Get the message id to remove buttons after clicking
+        // We need to update the callback query to remove buttons
         switch (callbackData) {
             case "ACCEPT" -> {
                 rsvpService.saveOrUpdateRsvp(chatId, firstName, Rsvp.Status.ACCEPT, meeting.getId());
@@ -424,6 +435,30 @@ public class MeetingBot extends TelegramLongPollingBot {
         message.setText(text);
         try {
             execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+    // Remove buttons from message after participant clicks
+    private void removeButtons(String chatId, Integer messageId) {
+        EditMessageReplyMarkup editMarkup = new EditMessageReplyMarkup();
+        editMarkup.setChatId(chatId);
+        editMarkup.setMessageId(messageId);
+        editMarkup.setReplyMarkup(new InlineKeyboardMarkup(new ArrayList<>()));
+        try {
+            execute(editMarkup);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Answer callback query to stop loading spinner on button
+    private void answerCallback(String callbackQueryId) {
+        org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery answer =
+                new org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery();
+        answer.setCallbackQueryId(callbackQueryId);
+        try {
+            execute(answer);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
