@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,11 @@ public class ReminderService {
     @Lazy
     @Autowired
     private MeetingBot meetingBot;
+
+    private String formatTime(Meeting meeting) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        return meeting.getMeetingTime().format(formatter);
+    }
 
     @Scheduled(fixedRate = 60000) // every 1 minute
     public void checkReminders() {
@@ -39,8 +45,8 @@ public class ReminderService {
 
         System.out.println("⏰ Minutes until meeting: " + minutesUntil);
 
-        // 1 day before
-        if (minutesUntil >= 1410 && minutesUntil <= 1470) {
+        // 1 day before — exactly 1440 minutes, tight 10 minute window
+        if (minutesUntil >= 1435 && minutesUntil <= 1445) {
             if (!meeting.isOneDayReminderSent()) {
                 sendOneDayReminder(meeting);
                 meeting.setOneDayReminderSent(true);
@@ -48,8 +54,8 @@ public class ReminderService {
             }
         }
 
-        // 3 hours before
-        if (minutesUntil >= 150 && minutesUntil <= 210) {
+        // 3 hours before — exactly 180 minutes, tight 10 minute window
+        if (minutesUntil >= 175 && minutesUntil <= 185) {
             if (!meeting.isThreeHourReminderSent()) {
                 sendThreeHourReminder(meeting);
                 meeting.setThreeHourReminderSent(true);
@@ -57,7 +63,7 @@ public class ReminderService {
             }
         }
 
-        // 5 minutes before
+        // 5 minutes before — exactly 5 minutes
         if (minutesUntil >= 4 && minutesUntil <= 6) {
             if (!meeting.isFiveMinuteReminderSent()) {
                 sendFiveMinuteReminder(meeting);
@@ -66,7 +72,7 @@ public class ReminderService {
             }
         }
 
-        // Meeting started
+        // Meeting started — exactly 0 minutes
         if (minutesUntil >= -1 && minutesUntil <= 1) {
             if (!meeting.isStartedNotificationSent()) {
                 sendMeetingStarted(meeting);
@@ -90,7 +96,7 @@ public class ReminderService {
             meetingBot.sendMessage(rsvp.getChatId(),
                     "⏰ Reminder: Tomorrow is the meeting!\n\n" +
                             "📋 " + meeting.getTitle() + "\n" +
-                            "🕐 " + meeting.getMeetingTime() + "\n\n" +
+                            "🕐 " + formatTime(meeting) + "\n\n" +
                             "We look forward to seeing you! ✅"
             );
         }
@@ -99,7 +105,8 @@ public class ReminderService {
         for (Rsvp rsvp : maybe) {
             meetingBot.sendTwoButtons(rsvp.getChatId(),
                     "⏰ The meeting is tomorrow!\n\n" +
-                            "📋 " + meeting.getTitle() + "\n\n" +
+                            "📋 " + meeting.getTitle() + "\n" +
+                            "🕐 " + formatTime(meeting) + "\n\n" +
                             "⚠️ This is your last chance to decide!\n" +
                             "Please choose — Maybe is no longer available:"
             );
@@ -114,7 +121,7 @@ public class ReminderService {
             meetingBot.sendMessage(rsvp.getChatId(),
                     "⏰ Meeting starts in 3 hours!\n\n" +
                             "📋 " + meeting.getTitle() + "\n" +
-                            "🕐 " + meeting.getMeetingTime() + "\n\n" +
+                            "🕐 " + formatTime(meeting) + "\n\n" +
                             "Please be on time! ✅"
             );
         }
@@ -123,7 +130,8 @@ public class ReminderService {
         for (Rsvp rsvp : maybe) {
             meetingBot.sendMessage(rsvp.getChatId(),
                     "⏰ Meeting starts in 3 hours!\n\n" +
-                            "📋 " + meeting.getTitle() + "\n\n" +
+                            "📋 " + meeting.getTitle() + "\n" +
+                            "🕐 " + formatTime(meeting) + "\n\n" +
                             "📲 If you wish to attend, please register your attendance\n" +
                             "by scanning the QR code at the meeting room entrance."
             );
