@@ -1,5 +1,4 @@
 package org.example.tnal_prochum.service;
-
 import org.example.tnal_prochum.model.Meeting;
 import org.example.tnal_prochum.model.Rsvp;
 import org.example.tnal_prochum.telegram.MeetingBot;
